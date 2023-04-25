@@ -4,5 +4,5 @@ import searchengine.dto.indexation.IndexingResponse;
 
 public interface IndexationService
 {
-    IndexingResponse indexingStatusResponse();
+    void indexingStatusResponse();
 }

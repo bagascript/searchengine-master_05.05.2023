@@ -27,4 +27,12 @@ public interface SiteRepository extends JpaRepository<SiteEntity, Integer>
     @Transactional
     @Query("UPDATE SiteEntity s SET s.status = :status, s.lastError = :lastError WHERE s.id = :id")
     void updateOnFailed(@Param("id") int id, StatusType status, String lastError);
+
+    @Transactional
+    @Query("SELECT case WHEN s.status = 'FAILED' THEN true else false end FROM SiteEntity s")
+    boolean selectSiteStatus();
+
+    @Transactional
+    @Query("SELECT s.lastError FROM SiteEntity s WHERE s.lastError IS NOT NULL")
+    String selectLastError();
 }
