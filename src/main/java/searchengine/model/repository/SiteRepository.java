@@ -9,6 +9,7 @@ import searchengine.model.entity.SiteEntity;
 import searchengine.model.entity.StatusType;
 
 import javax.transaction.Transactional;
+import java.util.Optional;
 
 @Repository
 public interface SiteRepository extends JpaRepository<SiteEntity, Integer>
@@ -29,10 +30,6 @@ public interface SiteRepository extends JpaRepository<SiteEntity, Integer>
     void updateOnFailed(@Param("id") int id, StatusType status, String lastError);
 
     @Transactional
-    @Query("SELECT case WHEN s.status = 'FAILED' THEN true else false end FROM SiteEntity s")
-    boolean selectSiteStatus();
-
-    @Transactional
-    @Query("SELECT s.lastError FROM SiteEntity s WHERE s.lastError IS NOT NULL")
-    String selectLastError();
+    @Query("SELECT s FROM SiteEntity s WHERE s.name = :name AND s.status = :status")
+    Optional<SiteEntity> findByNameAndStatus(@Param("name") String name, @Param("status") StatusType indexed);
 }

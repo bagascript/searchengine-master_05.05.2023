@@ -1,8 +1,6 @@
 package searchengine.model.entity;
 
 import lombok.*;
-import searchengine.model.entity.PageEntity;
-import searchengine.model.entity.StatusType;
 
 import javax.persistence.*;
 import java.io.Serializable;

@@ -5,45 +5,38 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.select.Elements;
 import org.springframework.beans.factory.annotation.Autowired;
-import searchengine.model.entity.PageEntity;
 import searchengine.model.entity.SiteEntity;
-import searchengine.model.entity.StatusType;
-import searchengine.model.repository.PageRepository;
 import searchengine.model.repository.SiteRepository;
 import searchengine.config.Page;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RecursiveTask;
 
-public class LinkFinder extends RecursiveTask<Set<String>> {
-    @Autowired
-    private SiteRepository siteRepository;
-    @Autowired
-    private PageRepository pageRepository;
-    private SiteEntity siteEntity;
+public class LinkFinder extends RecursiveTask<ConcurrentHashMap<String, SiteEntity>> {
+    private static ConcurrentHashMap<Page, SiteEntity> pages = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, Integer> checkUrl = new ConcurrentHashMap<>();
 
-    private static Set<PageEntity> pages = new HashSet<>();
+    private final SiteEntity siteEntity;
     private final String url;
     private final int id;
-    private static volatile Set<String> checkUrl = new HashSet<>();
 
+    @Autowired
+    private final SiteRepository siteRepository;
 
-    public LinkFinder(String url, int id, SiteRepository siteRepository,
-                      PageRepository pageRepository, SiteEntity siteEntity) {
+    public LinkFinder(String url, int id, SiteRepository siteRepository, SiteEntity siteEntity) {
         this.id = id;
         this.url = url.trim();
         this.siteRepository = siteRepository;
-        this.pageRepository = pageRepository;
         this.siteEntity = siteEntity;
     }
 
     @Override
-    protected Set<String> compute() {
-        Set<String> links = new HashSet<>();
-        Set<LinkFinder> tasks = new HashSet<>();
-        links.add(url);
+    protected ConcurrentHashMap<String, SiteEntity> compute() {
+        ConcurrentHashMap<String, SiteEntity> links = new ConcurrentHashMap<>();
+        ConcurrentHashMap<LinkFinder, SiteEntity> tasks = new ConcurrentHashMap<>();
+        links.put(url, siteEntity);
         Document document;
         Elements elements;
         try {
@@ -57,38 +50,41 @@ public class LinkFinder extends RecursiveTask<Set<String>> {
             elements.forEach(el -> {
                 String item = el.attr("abs:href");
                 if (item.startsWith(url)
-                        && !checkUrl.contains(item)
+                        && !checkUrl.containsKey(item)
                         && !item.contains("#")
                         && !item.contains("?")) {
                     String content = el.html();
-
-                    PageEntity pageEntity = new PageEntity();
-                    pageEntity.setSite(siteEntity);
-                    pageEntity.setPath(item);
-                    pageEntity.setContent(content);
-                    pageEntity.setCode(response.statusCode());
-                    siteRepository.updateStatusTime(id);
-                    pages.add(pageEntity);
-                    pageRepository.save(pageEntity);
-
-                    LinkFinder linkFinderTask = new LinkFinder(item, id, siteRepository, pageRepository,siteEntity);
+                    Page page = new Page(); // прототип PageEntity
+                    page.setCode(response.statusCode());
+                    page.setSite(siteEntity);
+                    page.setPath(item);
+                    page.setContent(content);
+                    putPageDataInMap(page);
+                    LinkFinder linkFinderTask = new LinkFinder(item, id, siteRepository, siteEntity);
                     linkFinderTask.fork();
-                    tasks.add(linkFinderTask);
-                    checkUrl.add(item);
+                    tasks.put(linkFinderTask, siteEntity);
+                    checkUrl.put(item, siteEntity.getId());
                     System.out.println(checkUrl.size());
                 }
             });
         } catch (InterruptedException | IOException ignored) {
         }
 
-        for (LinkFinder task : tasks) {
-            links.addAll(task.join());
+        for (Map.Entry<LinkFinder, SiteEntity> entry : tasks.entrySet()) {
+            links.putAll(entry.getKey().join());
         }
+
         return links;
     }
 
-    public Set<PageEntity> getPages(){
+    private void putPageDataInMap(Page page) {
+        if (!pages.containsKey(page)) {
+            pages.put(page, siteEntity);
+        }
+        siteRepository.updateStatusTime(id); // постоянное обновление status_time
+    }
+
+    public ConcurrentHashMap<Page, SiteEntity> getPages() {
         return pages;
     }
 }
-
