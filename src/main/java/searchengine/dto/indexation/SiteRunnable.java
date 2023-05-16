@@ -16,8 +16,8 @@ import java.util.concurrent.ForkJoinPool;
 
 @Slf4j
 @RequiredArgsConstructor
-public class SiteRunnable implements Runnable
-{
+public class SiteRunnable implements Runnable {
+    private static final Object LOCK = new Object();
     private final SiteEntity site;
     private final SiteRepository siteRepository;
     private final PageRepository pageRepository;
@@ -27,35 +27,38 @@ public class SiteRunnable implements Runnable
         LinkFinder linkFinder = new LinkFinder(site.getUrl(), site.getId(), siteRepository, site);
         ForkJoinPool forkJoinPool = new ForkJoinPool();
         ConcurrentHashMap<String, SiteEntity> links = forkJoinPool.invoke(linkFinder);
-        forkJoinPool.shutdown();
         ConcurrentHashMap<Page, SiteEntity> pages = linkFinder.getPages();
+        forkJoinPool.shutdown();
 
         // Добавление данных Page в БД PageEntity
-        for(Map.Entry<Page, SiteEntity> entry : pages.entrySet()) {
-            if(pageRepository.checkOnDuplicatePage(entry.getKey().getPath(), entry.getValue()) == 0) {
+        for (Map.Entry<Page, SiteEntity> entry : pages.entrySet()) {
+            if (!pageRepository.existsByPath(entry.getKey().getPath())) {
                 PageEntity pageEntity = new PageEntity();
                 pageEntity.setSite(entry.getValue());
                 pageEntity.setPath(entry.getKey().getPath());
                 pageEntity.setContent(entry.getKey().getContent());
                 pageEntity.setCode(entry.getKey().getCode());
-                pageRepository.saveAndFlush(pageEntity);
+
+                synchronized (LOCK) {
+                    pageRepository.saveAndFlush(pageEntity);
+                }
             }
         }
 
-        // Поиск последней сохраненной ссылки сайта в БД и если true - установка статуса INDEXED
-        for(Map.Entry<String, SiteEntity> entry : links.entrySet()) {
-            if(pageRepository.getLastSitePage(entry.getValue()).equals(entry.getKey())) {
-                SiteEntity siteEntity = siteRepository.findByNameAndStatus(entry.getValue().getName(),
-                        StatusType.INDEXING).orElse(site);
-                siteEntity.setStatusTime(LocalDateTime.now());
-                saveSiteData(siteEntity);
-                break;
+            // Поиск последней сохраненной ссылки сайта в БД и если true - установка статуса INDEXED
+            for (Map.Entry<String, SiteEntity> entry : links.entrySet()) {
+                if (pageRepository.getLastSitePage(entry.getValue()).equals(entry.getKey())) {
+                    SiteEntity siteEntity = siteRepository.findByNameAndStatus(entry.getValue().getName(),
+                            StatusType.INDEXING).orElse(site);
+                    siteEntity.setStatusTime(LocalDateTime.now());
+                    saveSiteData(siteEntity);
+                    break;
+                }
             }
         }
-    }
 
-    // Передача обновления статуса с INDEXING на INDEXED
-    private void saveSiteData(SiteEntity site) {
-        siteRepository.updateOnIndexed(site.getId(), StatusType.INDEXED);
+        // Передача обновления статуса с INDEXING на INDEXED
+        private void saveSiteData (SiteEntity site){
+            siteRepository.updateOnIndexed(site.getId(), StatusType.INDEXED);
+        }
     }
-}

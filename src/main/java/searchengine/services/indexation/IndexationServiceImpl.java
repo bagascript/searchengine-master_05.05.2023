@@ -24,7 +24,12 @@ import java.util.concurrent.*;
 @Slf4j
 public class IndexationServiceImpl implements IndexationService {
     private static final List<SiteEntity> siteEntities = new ArrayList<>();
+
     private static final String errorMsg = "Главная страница сайта не доступна";
+    private static final String indexingErrorResponseText = "Индексация уже запущена";
+
+    private static final String errorStopMsg = "Индексация остановлена пользователем";
+    private static final String stoppingErrorResponseText = "Индексация не запущена";
 
     private final SitesList sites;
     private ExecutorService executorService = null;
@@ -43,19 +48,19 @@ public class IndexationServiceImpl implements IndexationService {
             SiteEntity siteEntity = new SiteEntity();
             setIndexingStatusSite(siteEntity, site);
             siteEntities.add(siteEntity);
-            if(!isValidURL(siteEntity.getUrl())) {
+            if (!isValidURL(siteEntity.getUrl())) {
                 setFailedStatusSite(siteEntity);
             } else {
                 synchronized (Executors.class) {
-                    if(executorService == null) {
-                        executorService = Executors.newCachedThreadPool();
-                    }
+                    if (executorService == null) {
+                       executorService = Executors.newCachedThreadPool();
+                   }
                     executorService.submit(new SiteRunnable(siteEntity, siteRepository, pageRepository));
                 }
             }
         }
 
-        return indexingResponse();
+        return indexingResponse(indexingErrorResponseText);
     }
 
     // очистка перед индексацией
@@ -90,25 +95,29 @@ public class IndexationServiceImpl implements IndexationService {
         siteRepository.save(siteEntity);
     }
 
-    // Не знаю точно при каких условиях может быть выкинут result = false с текстом 'Индексация уже запущена',
-    // но в любом случае хотя бы метод создал. Будет true, если по итогу число метода count() элементов листа
-    // будет совпадать с размером этой же коллекции, то есть все элементы будет иметь статус INDEXING.
-    // Но, чтобы кнопка поменялась c startIndexing на stopIndexing, я поставил '!' при вызове данного метода
-    // в indexingResponse(), что делать? Оставить или всё-таки
-    // надо какое-то заурядное условие прописать, но какое, не подскажете? =)
     private boolean isIndexingRunning() {
-        return siteEntities.stream().map(s -> s.getStatus().equals(StatusType.INDEXING)).count()
-                == siteEntities.size();
+        return siteEntities.stream()
+                .map(s -> s.getStatus().equals(StatusType.INDEXING)).count() == siteEntities.size();
     }
 
+    @Override
+    public IndexingResponse stoppingStatusResponse() {
+        List<SiteEntity> resSites = siteRepository.findAllByStatus(StatusType.INDEXING);
+        for (SiteEntity site : resSites) {
+            executorService.shutdownNow();
+            siteRepository.updateOnFailed(site.getId(), StatusType.FAILED, errorStopMsg);
+        }
 
-    private IndexingResponse indexingResponse() {
+        return indexingResponse(stoppingErrorResponseText);
+    }
+
+    private IndexingResponse indexingResponse(String errorText) {
         IndexingResponse response = new IndexingResponse();
         String error;
         boolean result;
         if (!isIndexingRunning()) {
             response.setResult(false);
-            response.setError("Индексация уже запущена");
+            response.setError(errorText);
         } else {
             response.setResult(true);
             response.setError(null);

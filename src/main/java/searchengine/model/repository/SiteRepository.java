@@ -9,6 +9,7 @@ import searchengine.model.entity.SiteEntity;
 import searchengine.model.entity.StatusType;
 
 import javax.transaction.Transactional;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -32,4 +33,11 @@ public interface SiteRepository extends JpaRepository<SiteEntity, Integer>
     @Transactional
     @Query("SELECT s FROM SiteEntity s WHERE s.name = :name AND s.status = :status")
     Optional<SiteEntity> findByNameAndStatus(@Param("name") String name, @Param("status") StatusType indexed);
+
+    @Modifying
+    @Transactional
+    List<SiteEntity> findAllByStatus(StatusType statusType);
+
+    @Transactional
+    SiteEntity findByLastError(Integer id);
 }
