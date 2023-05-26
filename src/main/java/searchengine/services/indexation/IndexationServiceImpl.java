@@ -23,6 +23,8 @@ import java.util.concurrent.*;
 @RequiredArgsConstructor
 @Slf4j
 public class IndexationServiceImpl implements IndexationService {
+    public static volatile boolean isCanceled = false;
+
     private static final List<SiteEntity> siteEntities = new ArrayList<>();
 
     private static final String errorMsg = "Главная страница сайта не доступна";
@@ -104,6 +106,7 @@ public class IndexationServiceImpl implements IndexationService {
     public IndexingResponse stoppingStatusResponse() {
         List<SiteEntity> resSites = siteRepository.findAllByStatus(StatusType.INDEXING);
         for (SiteEntity site : resSites) {
+            isCanceled = true;
             executorService.shutdownNow();
             siteRepository.updateOnFailed(site.getId(), StatusType.FAILED, errorStopMsg);
         }

@@ -8,6 +8,7 @@ import searchengine.model.entity.SiteEntity;
 import searchengine.model.entity.StatusType;
 import searchengine.model.repository.PageRepository;
 import searchengine.model.repository.SiteRepository;
+import searchengine.services.indexation.IndexationServiceImpl;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -28,22 +29,22 @@ public class SiteRunnable implements Runnable {
         ForkJoinPool forkJoinPool = new ForkJoinPool();
         ConcurrentHashMap<String, SiteEntity> links = forkJoinPool.invoke(linkFinder);
         ConcurrentHashMap<Page, SiteEntity> pages = linkFinder.getPages();
-        forkJoinPool.shutdown();
 
-        // Добавление данных Page в БД PageEntity
-        for (Map.Entry<Page, SiteEntity> entry : pages.entrySet()) {
-            if (!pageRepository.existsByPath(entry.getKey().getPath())) {
-                PageEntity pageEntity = new PageEntity();
-                pageEntity.setSite(entry.getValue());
-                pageEntity.setPath(entry.getKey().getPath());
-                pageEntity.setContent(entry.getKey().getContent());
-                pageEntity.setCode(entry.getKey().getCode());
+        if(!IndexationServiceImpl.isCanceled) {
+            // Добавление данных Page в БД PageEntity
+            for (Map.Entry<Page, SiteEntity> entry : pages.entrySet()) {
+                if (!pageRepository.existsByPath(entry.getKey().getPath())) {
+                    PageEntity pageEntity = new PageEntity();
+                    pageEntity.setSite(entry.getValue());
+                    pageEntity.setPath(entry.getKey().getPath());
+                    pageEntity.setContent(entry.getKey().getContent());
+                    pageEntity.setCode(entry.getKey().getCode());
 
-                synchronized (LOCK) {
-                    pageRepository.saveAndFlush(pageEntity);
+                    synchronized (LOCK) {
+                        pageRepository.saveAndFlush(pageEntity);
+                    }
                 }
             }
-        }
 
             // Поиск последней сохраненной ссылки сайта в БД и если true - установка статуса INDEXED
             for (Map.Entry<String, SiteEntity> entry : links.entrySet()) {
@@ -55,10 +56,14 @@ public class SiteRunnable implements Runnable {
                     break;
                 }
             }
-        }
-
-        // Передача обновления статуса с INDEXING на INDEXED
-        private void saveSiteData (SiteEntity site){
-            siteRepository.updateOnIndexed(site.getId(), StatusType.INDEXED);
+        } else {
+            forkJoinPool.shutdownNow();
         }
     }
+
+
+    // Передача обновления статуса с INDEXING на INDEXED
+    private void saveSiteData(SiteEntity site) {
+        siteRepository.updateOnIndexed(site.getId(), StatusType.INDEXED);
+    }
+}
