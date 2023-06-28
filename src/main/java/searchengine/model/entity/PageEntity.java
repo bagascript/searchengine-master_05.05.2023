@@ -4,11 +4,10 @@ import lombok.*;
 
 import javax.persistence.*;
 import java.io.Serializable;
+import java.util.Set;
 
 @Getter
 @Setter
-@EqualsAndHashCode(exclude = "id")
-@Builder
 @Entity
 @Table(name = "page")
 @NoArgsConstructor
@@ -23,6 +22,9 @@ public class PageEntity implements Serializable
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "site_id", referencedColumnName = "id", nullable = false)
     private SiteEntity site;
+
+    @OneToMany(mappedBy = "page", cascade = CascadeType.ALL)
+    private Set<IndexEntity> indexEntities;
 
     @Column(name = "path", columnDefinition = "TEXT NOT NULL, Index(path(255))")
     private String path;

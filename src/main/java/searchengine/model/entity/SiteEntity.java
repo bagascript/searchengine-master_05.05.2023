@@ -9,8 +9,6 @@ import java.util.*;
 
 @Getter
 @Setter
-@EqualsAndHashCode(exclude = "id")
-@Builder
 @Entity
 @Table(name = "site")
 @NoArgsConstructor
@@ -24,6 +22,9 @@ public class SiteEntity implements Serializable
 
     @OneToMany(mappedBy = "site", cascade = CascadeType.ALL)
     private Set<PageEntity> pageEntities;
+
+    @OneToMany(mappedBy = "site", cascade = CascadeType.ALL)
+    private Set<LemmaEntity> lemmaEntities;
 
     @Column(name = "status", nullable = false, columnDefinition = "ENUM('INDEXING', 'INDEXED', 'FAILED')")
     @Enumerated(EnumType.STRING)

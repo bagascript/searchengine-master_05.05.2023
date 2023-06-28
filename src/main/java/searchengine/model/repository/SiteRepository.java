@@ -39,5 +39,6 @@ public interface SiteRepository extends JpaRepository<SiteEntity, Integer>
     List<SiteEntity> findAllByStatus(StatusType statusType);
 
     @Transactional
-    SiteEntity findByLastError(Integer id);
+    @Query("SELECT s FROM SiteEntity s WHERE s.url = :url")
+    SiteEntity getSiteId(@Param("url") String url);
 }

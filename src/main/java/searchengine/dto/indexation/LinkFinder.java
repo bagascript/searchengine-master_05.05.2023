@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import searchengine.model.entity.SiteEntity;
 import searchengine.model.repository.SiteRepository;
 import searchengine.config.Page;
+import searchengine.services.indexation.IndexationServiceImpl;
 
 import java.io.IOException;
 import java.util.*;
@@ -81,7 +82,10 @@ public class LinkFinder extends RecursiveTask<ConcurrentHashMap<String, SiteEnti
         if (!pages.containsKey(page)) {
             pages.put(page, siteEntity);
         }
-        siteRepository.updateStatusTime(id); // постоянное обновление status_time
+
+        if(!IndexationServiceImpl.isCanceled) {
+            siteRepository.updateStatusTime(id); // постоянное обновление status_time
+        }
     }
 
     public ConcurrentHashMap<Page, SiteEntity> getPages() {
